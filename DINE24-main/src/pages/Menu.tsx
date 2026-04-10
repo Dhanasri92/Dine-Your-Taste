@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Star, Clock, Flame, Leaf } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { menuApi } from "@/lib/apiClient";
 import MenuSearch from "@/components/MenuSearch";
 
 const Menu = () => {
@@ -15,13 +15,8 @@ const Menu = () => {
   const { data: menuItems, isLoading } = useQuery({
     queryKey: ['menu-items'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('menu_items')
-        .select('*')
-        .order('category', { ascending: true });
-      
-      if (error) throw error;
-      return data;
+      const data = await menuApi.getAll();
+      return data.menu_items || [];
     }
   });
 
@@ -89,7 +84,7 @@ const Menu = () => {
             <h2 className="font-playfair text-4xl font-bold text-royal-gold text-center mb-12">{category}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {items.map((item: any) => (
-                <Card key={item.id} className="card-royal hover:scale-105 transition-transform">
+                <Card key={item._id || item.id} className="card-royal hover:scale-105 transition-transform">
                   <div className="relative">
                     <img 
                       src={`https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400`}

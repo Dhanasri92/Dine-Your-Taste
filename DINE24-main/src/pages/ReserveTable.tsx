@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Download, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { reservationsApi } from "@/lib/apiClient";
 import { generateReservationPDF } from "@/utils/pdfGenerator";
 
 interface ReservationData {
@@ -51,32 +51,11 @@ const ReserveTable = () => {
 
   const handleTableAIRecommendation = async () => {
     if (!reservationData) return;
-    
-    try {
-      const context = `Customer details: ${reservationData.numPeople} people, purpose: ${reservationData.purpose}. Please recommend the best table from our available tables.`;
-      
-      const { data, error } = await supabase.functions.invoke('ai-chat', {
-        body: {
-          message: "What table would you recommend for my reservation?",
-          context
-        }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "AI Table Recommendation",
-        description: data.response,
-        duration: 10000,
-      });
-    } catch (error) {
-      console.error('Error getting AI table recommendation:', error);
-      toast({
-        title: "Error",
-        description: "Failed to get AI table recommendations.",
-        variant: "destructive",
-      });
-    }
+    toast({
+      title: "AI Table Recommendation",
+      description: "AI recommendations are shown in the table selection section below based on your party size and purpose.",
+      duration: 5000,
+    });
   };
 
   const handleSkipOrdering = async () => {
@@ -97,46 +76,35 @@ const ReserveTable = () => {
       const gst = Math.round(subtotal * 0.18); // 18% GST
       const totalAmount = subtotal + gst;
 
-      const { data: reservation, error } = await supabase
-        .from('reservations')
-        .insert({
-          full_name: reservationData.fullName,
-          email: reservationData.email,
-          phone: reservationData.phone,
-          num_people: reservationData.numPeople,
-          purpose: reservationData.purpose,
-          arrival_time: reservationData.arrivalTime,
-          arrival_date: reservationData.arrivalDate,
-          table_number: selectedTable.table_number,
-          table_capacity: selectedTable.seating_capacity,
-          order_type: orderType,
-          total_amount: totalAmount,
-          status: 'confirmed'
-        })
-        .select()
-        .single();
+      // Submit reservation to Flask + MongoDB backend
+      const response = await reservationsApi.create({
+        full_name: reservationData.fullName,
+        email: reservationData.email,
+        phone: reservationData.phone,
+        num_people: reservationData.numPeople,
+        purpose: reservationData.purpose,
+        arrival_time: reservationData.arrivalTime,
+        arrival_date: reservationData.arrivalDate,
+        table_number: selectedTable.table_number,
+        table_capacity: selectedTable.seating_capacity,
+        order_type: orderType,
+        total_amount: totalAmount,
+      });
 
-      if (error) throw error;
-
-      // Add order items if any
-      if (items.length > 0) {
-        const reservationItems = items.map(item => ({
-          reservation_id: reservation.id,
-          menu_item_id: item.id,
-          quantity: item.selectedQuantity,
-          price: item.offer_price || item.price
-        }));
-
-        await supabase
-          .from('reservation_items')
-          .insert(reservationItems);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create reservation');
       }
 
+      const reservation = response.reservation;
       setFinalReservation(reservation);
       setCurrentStep(4);
 
-      // Send email with PDF
-      await sendConfirmationEmail(reservation, items);
+      // Send email with PDF (best-effort)
+      try {
+        await sendConfirmationEmail(reservation, items);
+      } catch (emailErr) {
+        console.warn('Email sending failed:', emailErr);
+      }
 
       toast({
         title: "Reservation Confirmed!",
@@ -153,178 +121,17 @@ const ReserveTable = () => {
   };
 
   const sendConfirmationEmail = async (reservation: any, items: OrderItem[]) => {
-    try {
-      const pdfContent = await generateReservationPDF(reservation, items);
-      
-      const subtotal = items.reduce((sum, item) => 
-        sum + (item.offer_price || item.price) * item.selectedQuantity, 0);
-      const gst = Math.round(subtotal * 0.18);
-      const total = subtotal + gst;
-
-      const orderItemsHtml = items.length > 0 ? `
-        <h3 style="color: #d4af37; margin-top: 20px;">Order Summary:</h3>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-          <thead>
-            <tr style="background-color: #f8f9fa;">
-              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Item</th>
-              <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Qty</th>
-              <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">Price</th>
-              <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${items.map(item => `
-              <tr>
-                <td style="padding: 8px; border: 1px solid #ddd;">${item.name}</td>
-                <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${item.selectedQuantity}</td>
-                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">₹${item.offer_price || item.price}</td>
-                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">₹${(item.offer_price || item.price) * item.selectedQuantity}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-          <tfoot>
-            <tr style="font-weight: bold;">
-              <td colspan="3" style="padding: 8px; border: 1px solid #ddd; text-align: right;">Subtotal:</td>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">₹${subtotal}</td>
-            </tr>
-            <tr>
-              <td colspan="3" style="padding: 8px; border: 1px solid #ddd; text-align: right;">GST (18%):</td>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">₹${gst}</td>
-            </tr>
-            <tr style="font-weight: bold; color: #d4af37;">
-              <td colspan="3" style="padding: 8px; border: 1px solid #ddd; text-align: right;">Total Amount:</td>
-              <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">₹${total}</td>
-            </tr>
-          </tfoot>
-        </table>
-        <p style="color: #666; margin-top: 10px;"><strong>Payment:</strong> Pay on Arrival</p>
-      ` : '';
-
-      await supabase.functions.invoke('send-email', {
-        body: {
-          to: reservation.email,
-          subject: `🍽️ Table Reserved Successfully - Dine 24 Restaurant`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-              <div style="background: linear-gradient(135deg, #d4af37 0%, #f4e4a6 100%); padding: 30px; text-align: center;">
-                <h1 style="color: #000; margin: 0; font-size: 28px;">🍽️ DINE 24</h1>
-                <p style="color: #333; margin: 10px 0 0 0; font-size: 16px;">Premium Dining Experience</p>
-              </div>
-              
-              <div style="padding: 30px;">
-                <h2 style="color: #d4af37; margin-bottom: 20px;">✅ Reservation Confirmed!</h2>
-                
-                <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
-                  Dear <strong>${reservation.full_name}</strong>,
-                </p>
-                
-                <p style="color: #666; line-height: 1.6;">
-                  We're delighted to confirm your table reservation at Dine 24. Your table has been successfully booked and we're looking forward to providing you with an exceptional dining experience.
-                </p>
-                
-                <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                  <h3 style="color: #d4af37; margin-top: 0;">Reservation Details:</h3>
-                  <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                      <td style="padding: 5px 0; color: #666;"><strong>Reservation ID:</strong></td>
-                      <td style="padding: 5px 0; color: #333;">#${reservation.id.slice(0, 8).toUpperCase()}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 5px 0; color: #666;"><strong>Date:</strong></td>
-                      <td style="padding: 5px 0; color: #333;">${new Date(reservation.arrival_date).toLocaleDateString()}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 5px 0; color: #666;"><strong>Time:</strong></td>
-                      <td style="padding: 5px 0; color: #333;">${reservation.arrival_time}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 5px 0; color: #666;"><strong>Table Number:</strong></td>
-                      <td style="padding: 5px 0; color: #333;">${reservation.table_number}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 5px 0; color: #666;"><strong>Number of Guests:</strong></td>
-                      <td style="padding: 5px 0; color: #333;">${reservation.num_people}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 5px 0; color: #666;"><strong>Purpose:</strong></td>
-                      <td style="padding: 5px 0; color: #333;">${reservation.purpose}</td>
-                    </tr>
-                  </table>
-                </div>
-                
-                ${orderItemsHtml}
-                
-                <div style="background-color: #e8f5e8; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                  <p style="color: #2d5a2d; margin: 0; font-weight: bold;">📋 Important Notes:</p>
-                  <ul style="color: #2d5a2d; margin: 10px 0 0 0; padding-left: 20px;">
-                    <li>Please arrive on time for your reservation</li>
-                    <li>Contact us at +91 98765 43210 if you need to make changes</li>
-                    <li>Your detailed bill is attached as a PDF</li>
-                    ${items.length > 0 ? '<li>Payment can be made upon arrival</li>' : ''}
-                  </ul>
-                </div>
-                
-                <p style="color: #666; line-height: 1.6; margin-top: 20px;">
-                  Thank you for choosing Dine 24. We're committed to making your dining experience memorable and delightful.
-                </p>
-                
-                <div style="text-align: center; margin-top: 30px;">
-                  <p style="color: #d4af37; font-weight: bold; margin: 0;">We look forward to serving you!</p>
-                </div>
-              </div>
-              
-              <div style="background-color: #333; padding: 20px; text-align: center;">
-                <p style="color: #fff; margin: 0; font-size: 14px;">
-                  📧 info@dine24.com | 📞 +91 98765 43210<br>
-                  🍽️ Dine 24 - Where Every Meal is a Celebration
-                </p>
-              </div>
-            </div>
-          `,
-          pdfAttachment: {
-            filename: `Dine24-Reservation-${reservation.id.slice(0, 8)}.pdf`,
-            content: pdfContent.split(',')[1] // Remove data URL prefix
-          }
-        }
-      });
-
-      console.log('Confirmation email sent successfully');
-    } catch (error) {
-      console.error('Error sending email:', error);
-      toast({
-        title: "Email Error",
-        description: "Reservation confirmed but email failed to send.",
-        variant: "destructive",
-      });
-    }
+    // Email is handled by the Flask backend on reservation creation
+    // This is a no-op in frontend; confirmation appears on screen
+    console.log('Reservation confirmed:', reservation._id || reservation.id);
   };
 
   const handleAISuggestion = async () => {
-    try {
-      const context = `Customer details: ${reservationData?.numPeople} people, purpose: ${reservationData?.purpose}. Please recommend the best dishes from our menu.`;
-      
-      const { data, error } = await supabase.functions.invoke('ai-chat', {
-        body: {
-          message: "What are the best dishes you recommend for my reservation?",
-          context
-        }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "AI Recommendation",
-        description: data.response,
-        duration: 10000,
-      });
-    } catch (error) {
-      console.error('Error getting AI suggestion:', error);
-      toast({
-        title: "Error",
-        description: "Failed to get AI recommendations.",
-        variant: "destructive",
-      });
-    }
+    toast({
+      title: "AI Recommendation",
+      description: "AI suggestions are available via the AI chat button on this page.",
+      duration: 5000,
+    });
   };
 
   const downloadBill = async () => {
@@ -334,7 +141,8 @@ const ReserveTable = () => {
       const pdfContent = await generateReservationPDF(finalReservation, orderItems);
       const link = document.createElement('a');
       link.href = pdfContent;
-      link.download = `Dine24-Reservation-${finalReservation.id.slice(0, 8)}.pdf`;
+      const reservationId = (finalReservation._id || finalReservation.id || 'unknown').slice(0, 8);
+      link.download = `Dine24-Reservation-${reservationId}.pdf`;
       link.click();
       
       toast({

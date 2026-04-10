@@ -27,15 +27,15 @@ const Footer = () => {
             <div className="space-y-2 text-sm">
               <div className="flex items-center space-x-2">
                 <MapPin className="h-4 w-4 text-royal-gold" />
-                <span>Dine 24, Kothapet, Hyderabad</span>
+                <span>Dine 24, CBIT, Hyderabad</span>
               </div>
               <div className="flex items-center space-x-2">
                 <Phone className="h-4 w-4 text-royal-gold" />
-                <span>+91 91333 35476</span>
+                <span>+91 9885587557</span>
               </div>
               <div className="flex items-center space-x-2">
                 <Mail className="h-4 w-4 text-royal-gold" />
-                <span>bhavyareddy.mamidala@gmail.com</span>
+                <span>921132dhanasrisoli@gmail.com</span>
               </div>
             </div>
           </div>

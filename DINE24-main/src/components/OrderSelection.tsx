@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Plus, Minus, ShoppingCart, Sparkles, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { menuApi } from "@/lib/apiClient";
 import BillPreview from "./BillPreview";
 import CheckoutPanel from "./CheckoutPanel";
 
@@ -32,13 +32,8 @@ const OrderSelection = ({ reservationData, selectedTable, onOrderComplete }: Ord
   const { data: menuItems, isLoading } = useQuery({
     queryKey: ['menu-items'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('menu_items')
-        .select('*')
-        .order('category, name');
-      
-      if (error) throw error;
-      return data;
+      const data = await menuApi.getAll();
+      return data.menu_items || [];
     }
   });
 
@@ -101,19 +96,22 @@ const OrderSelection = ({ reservationData, selectedTable, onOrderComplete }: Ord
     setShowAIRecommendations(true);
     
     try {
-      const context = `Customer preferences: ${dietaryPreference} food, ${cuisine} cuisine. Available menu items: ${menuItems?.map(item => `${item.name} (${item.category}, ${item.is_veg ? 'Veg' : 'Non-Veg'}, ₹${item.price})`).join(', ')}. Recommend 3-5 items that match their preferences.`;
+      // Build local recommendation based on preferences
+      const filtered = menuItems?.filter(item => {
+        const vegMatch = dietaryPreference === 'both' || 
+          (dietaryPreference === 'vegetarian' && item.is_veg) || 
+          (dietaryPreference === 'non-vegetarian' && !item.is_veg);
+        return vegMatch;
+      }) || [];
       
-      const { data, error } = await supabase.functions.invoke('ai-chat', {
-        body: {
-          message: `Recommend food items based on my preferences: ${dietaryPreference} and ${cuisine} cuisine`,
-          context
-        }
-      });
-
-      if (error) throw error;
-      
-      let cleanResponse = data.response.replace(/\*\*/g, '').replace(/\*/g, '');
-      setAiSuggestion(cleanResponse);
+      const top3 = filtered.slice(0, 5);
+      if (top3.length > 0) {
+        const response = `Based on your ${dietaryPreference} preference for ${cuisine} cuisine, I recommend:\n` +
+          top3.map((item: any, i: number) => `${i + 1}. ${item.name} — ₹${item.offer_price || item.price} (${item.category})`).join('\n');
+        setAiSuggestion(response);
+      } else {
+        setAiSuggestion(`No ${dietaryPreference} items found. Browse our full menu below.`);
+      }
     } catch (error) {
       console.error('Error getting AI recommendation:', error);
       setAiSuggestion('Unable to get AI recommendation at the moment. Please browse our menu manually.');

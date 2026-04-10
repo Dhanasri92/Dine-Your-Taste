@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, MapPin, Sparkles, Heart, Building2, Coffee, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { tablesApi } from "@/lib/apiClient";
 
 interface Table {
   id: number;
@@ -30,13 +30,8 @@ const TableSelection = ({ reservationData, onTableSelect, onAIRecommendation, se
   const { data: tables, isLoading } = useQuery({
     queryKey: ['restaurant-tables'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('restaurant_tables')
-        .select('*')
-        .order('section, table_number');
-      
-      if (error) throw error;
-      return data as Table[];
+      const data = await tablesApi.getAll();
+      return (data.tables || []) as Table[];
     }
   });
 
@@ -44,15 +39,11 @@ const TableSelection = ({ reservationData, onTableSelect, onAIRecommendation, se
   const { data: existingReservations } = useQuery({
     queryKey: ['existing-reservations', reservationData.arrivalDate, reservationData.arrivalTime],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('reservations')
-        .select('table_number')
-        .eq('arrival_date', reservationData.arrivalDate)
-        .eq('arrival_time', reservationData.arrivalTime)
-        .eq('status', 'confirmed');
-      
-      if (error) throw error;
-      return data;
+      const data = await tablesApi.checkAvailability(
+        reservationData.arrivalDate,
+        reservationData.arrivalTime
+      );
+      return (data.reserved_table_numbers || []).map((n: string) => ({ table_number: n }));
     }
   });
 
@@ -118,17 +109,18 @@ const TableSelection = ({ reservationData, onTableSelect, onAIRecommendation, se
     setShowAISuggestion(true);
     
     try {
-      const context = `Customer details: ${reservationData.numPeople} people, purpose: ${reservationData.purpose}. Available tables: ${availableTables.map(t => `${t.table_number} (${t.section}, ${t.seating_capacity} seats)`).join(', ')}. Please recommend the best table and explain why.`;
+      // Use local recommendation logic since AI service requires backend config
+      const numPeople = parseInt(reservationData.numPeople);
+      const purpose = reservationData.purpose.toLowerCase();
+      const bestTable = recommendedTables[0];
       
-      const { data, error } = await supabase.functions.invoke('ai-chat', {
-        body: {
-          message: "What table would you recommend for my reservation?",
-          context
-        }
-      });
-
-      if (error) throw error;
-      setAiSuggestion(data.response);
+      if (bestTable) {
+        setAiSuggestion(
+          `Based on your group of ${numPeople} people for "${reservationData.purpose}", I recommend Table ${bestTable.table_number} in the ${bestTable.section} section. It seats ${bestTable.seating_capacity} guests${purpose.includes('romantic') ? ' — perfect for a romantic setting!' : purpose.includes('corporate') ? ' — ideal for business meetings!' : ' — great for your occasion!'}`
+        );
+      } else {
+        setAiSuggestion('No perfect match found. Please select from the available tables below based on your party size.');
+      }
     } catch (error) {
       console.error('Error getting AI recommendation:', error);
       setAiSuggestion('Unable to get AI recommendation at the moment. Please select from the available tables.');

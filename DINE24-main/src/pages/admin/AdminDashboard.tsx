@@ -4,74 +4,30 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Crown, TrendingUp, Users, ShoppingCart, Calendar, IndianRupee, Utensils, Gift } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { reservationsApi, menuApi } from "@/lib/apiClient";
 import { Link } from "react-router-dom";
 
 const AdminDashboard = () => {
   const { data: reservations, isLoading: reservationsLoading } = useQuery({
     queryKey: ['admin-reservations'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('reservations')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Error fetching reservations:', error);
-        throw error;
-      }
-      return data;
+      const data = await reservationsApi.getAll();
+      return data.reservations || [];
     }
   });
 
   const { data: menuItems, isLoading: menuLoading } = useQuery({
     queryKey: ['admin-menu-stats'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('menu_items')
-        .select('*');
-      
-      if (error) {
-        console.error('Error fetching menu items:', error);
-        throw error;
-      }
-      return data;
+      const data = await menuApi.getAll();
+      return data.menu_items || [];
     }
   });
 
-  const { data: todaysSpecials, isLoading: specialsLoading } = useQuery({
-    queryKey: ['admin-specials-stats'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('todays_specials')
-        .select('*')
-        .eq('is_active', true);
-      
-      if (error) {
-        console.error('Error fetching specials:', error);
-        throw error;
-      }
-      return data;
-    }
-  });
+  const todaysSpecials: any[] = [];
+  const reservationItems: any[] = [];
 
-  const { data: reservationItems, isLoading: ordersLoading } = useQuery({
-    queryKey: ['admin-order-stats'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('reservation_items')
-        .select('*, reservations(*)')
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Error fetching reservation items:', error);
-        throw error;
-      }
-      return data;
-    }
-  });
-
-  if (reservationsLoading || menuLoading || ordersLoading || specialsLoading) {
+  if (reservationsLoading || menuLoading) {
     return (
       <div className="min-h-screen py-16 flex items-center justify-center">
         <div className="text-royal-gold text-xl">Loading dashboard...</div>
@@ -81,7 +37,7 @@ const AdminDashboard = () => {
 
   const totalReservations = reservations?.length || 0;
   const totalOrders = reservationItems?.length || 0;
-  const totalRevenue = reservations?.reduce((sum, res) => sum + (res.total_amount || 0), 0) || 0;
+  const totalRevenue = reservations?.reduce((sum: number, res: any) => sum + (res.total_amount || 0), 0) || 0;
   const totalMenuItems = menuItems?.length || 0;
   const activeSpecials = todaysSpecials?.length || 0;
 
@@ -211,8 +167,8 @@ const AdminDashboard = () => {
             <CardContent>
               {latestBookings.length > 0 ? (
                 <div className="space-y-4">
-                  {latestBookings.map((booking) => (
-                    <div key={booking.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                  {latestBookings.map((booking: any) => (
+                    <div key={booking._id || booking.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                       <div>
                         <p className="font-semibold text-royal-gold">{booking.full_name}</p>
                         <p className="text-sm text-muted-foreground">
@@ -257,8 +213,8 @@ const AdminDashboard = () => {
           <CardContent>
             {reservations && reservations.length > 0 ? (
               <div className="space-y-3">
-                {reservations.slice(0, 4).map((reservation, index) => (
-                  <div key={reservation.id} className="flex items-center space-x-3 p-2">
+                {reservations.slice(0, 4).map((reservation: any, index: number) => (
+                  <div key={reservation._id || reservation.id} className="flex items-center space-x-3 p-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                     <span className="text-sm">New reservation from {reservation.full_name} for Table {reservation.table_number}</span>
                     <span className="text-xs text-muted-foreground ml-auto">

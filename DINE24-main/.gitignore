@@ -1,24 +1,171 @@
-# Logs
-logs
-*.log
+# ==========================================
+# DINE24 Restaurant Management System
+# .gitignore - Git ignore rules
+# ==========================================
+
+# ─── ENVIRONMENT FILES ───────────────────
+# Exclude sensitive environment variables
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ─── PYTHON / FLASK BACKEND ─────────────
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+env.bak/
+venv.bak/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Flask instance folder
+instance/
+.webassets-cache
+
+# ─── FRONTEND / NODE.JS ─────────────────
+# Dependencies
+node_modules/
 npm-debug.log*
+npm-error.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+pnpm-error.log*
 lerna-debug.log*
+*.pnp
+.pnp.js
 
-node_modules
-dist
-dist-ssr
+# Build outputs
+dist/
+dist-ssr/
 *.local
 
-# Editor directories and files
+# Testing
+coverage/
+.nyc_output/
+
+# Vite specific
+.vite/
+
+# ─── IDE & EDITOR CONFIGS ───────────────
+# VS Code
 .vscode/*
 !.vscode/extensions.json
-.idea
+.vscode-test
+*.code-workspace
+
+# IntelliJ / PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+*.idt
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ─── OS SPECIFIC FILES ──────────────────
+# macOS
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+
+# ─── LOGS & TEMPORARY FILES ─────────────
+logs/
+*.log
+*.log.*
+debug.log
+
+# ─── DATABASE ────────────────────────────
+# MongoDB
+.mongodb/
+*.mongodb
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+supabase/migrations/*/
+
+# ─── PROJECT SPECIFIC ───────────────────
+# Uploads/Media
+uploads/
+/uploads
+*.tmp
+*.bak
+
+# Cache
+.cache/
+.pytest_cache/
+
+# ==========================================
+# IMPORTANT: What IS tracked in git
+# ==========================================
+# ✅ Source code (.py, .ts, .tsx, .jsx, .js)
+# ✅ Configuration files (package.json, pyproject.toml)
+# ✅ Documentation (README.md, .env.example)
+# ✅ .gitignore itself
+# ✅ Build configs (tsconfig.json, vite.config.ts)
+# ✅ Database migrations (Supabase migrations)
+# ==========================================
+

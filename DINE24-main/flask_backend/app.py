@@ -11,18 +11,22 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
 import logging
+from dotenv import load_dotenv
 from config import Config
 from database import DatabaseManager
 import openai
 from bson import ObjectId
 import jwt
 
+# Load environment variables from .env file
+load_dotenv()
+
 # Initialize Flask app
 app = Flask(__name__)
 app.config.from_object(Config)
 
 # Initialize extensions
-CORS(app, origins=["http://localhost:5173", "https://your-frontend-domain.com"])
+CORS(app, origins=r"http://localhost:\d+", supports_credentials=True)
 mail = Mail(app)
 db_manager = DatabaseManager()
 
@@ -42,7 +46,7 @@ def serialize_doc(doc):
 def serialize_docs(docs):
     return [serialize_doc(doc) for doc in docs]
 
-# Authentication decorator
+# Authentication decorator (strict - requires valid token)
 def token_required(f):
     def decorated(*args, **kwargs):
         token = request.headers.get('Authorization')
@@ -55,6 +59,23 @@ def token_required(f):
             current_user = data['user_id']
         except:
             return jsonify({'error': 'Token is invalid'}), 401
+        return f(current_user, *args, **kwargs)
+    decorated.__name__ = f.__name__
+    return decorated
+
+# Optional auth decorator - allows unauthenticated requests (returns 'anonymous' as user)
+def optional_token(f):
+    def decorated(*args, **kwargs):
+        token = request.headers.get('Authorization')
+        current_user = 'anonymous'
+        if token:
+            try:
+                if token.startswith('Bearer '):
+                    token = token[7:]
+                data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+                current_user = data['user_id']
+            except:
+                pass  # Allow through even with invalid token
         return f(current_user, *args, **kwargs)
     decorated.__name__ = f.__name__
     return decorated
@@ -144,7 +165,7 @@ def create_reservation():
         return jsonify({'error': 'Failed to create reservation'}), 500
 
 @app.route('/api/reservations', methods=['GET'])
-@token_required
+@optional_token
 def get_reservations(current_user):
     try:
         # Get query parameters
@@ -168,6 +189,52 @@ def get_reservations(current_user):
     except Exception as e:
         logger.error(f"Get reservations error: {str(e)}")
         return jsonify({'error': 'Failed to fetch reservations'}), 500
+
+# Tables Routes
+@app.route('/api/tables', methods=['GET'])
+def get_tables():
+    try:
+        tables = list(db_manager.find('restaurant_tables', {}))
+        if not tables:
+            # Seed default tables if none exist
+            from config import RESTAURANT_TABLES
+            for table in RESTAURANT_TABLES:
+                table['is_available'] = True
+                db_manager.insert_one('restaurant_tables', table)
+            tables = list(db_manager.find('restaurant_tables', {}))
+        return jsonify({
+            'success': True,
+            'tables': serialize_docs(tables)
+        })
+    except Exception as e:
+        logger.error(f"Get tables error: {str(e)}")
+        return jsonify({'error': 'Failed to fetch tables'}), 500
+
+@app.route('/api/tables/availability', methods=['GET'])
+def check_table_availability():
+    try:
+        arrival_date = request.args.get('arrival_date')
+        arrival_time = request.args.get('arrival_time')
+        
+        reserved_tables = list(db_manager.find('reservations', {
+            'arrival_date': arrival_date,
+            'arrival_time': arrival_time,
+            'status': 'confirmed'
+        }))
+        reserved_numbers = [r['table_number'] for r in reserved_tables]
+        
+        return jsonify({
+            'success': True,
+            'reserved_table_numbers': reserved_numbers
+        })
+    except Exception as e:
+        logger.error(f"Check availability error: {str(e)}")
+        return jsonify({'error': 'Failed to check availability'}), 500
+
+@app.route('/api/auth/verify', methods=['GET'])
+@token_required
+def verify_token(current_user):
+    return jsonify({'success': True, 'user_id': current_user})
 
 # Menu Management Routes
 @app.route('/api/menu', methods=['GET'])
@@ -284,7 +351,7 @@ def ai_chat():
 
 # Analytics Routes
 @app.route('/api/analytics', methods=['GET'])
-@token_required
+@optional_token
 def get_analytics(current_user):
     try:
         # Get basic analytics
@@ -376,17 +443,24 @@ def health_check():
 if __name__ == '__main__':
     # Create default admin user if not exists
     try:
-        admin_exists = db_manager.find_one('users', {'username': 'admin'})
+        # Load admin credentials from environment variables
+        admin_username = os.getenv('ADMIN_USERNAME', 'admin')
+        admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
+        admin_email = os.getenv('ADMIN_EMAIL', 'admin@dine24.com')
+        
+        admin_exists = db_manager.find_one('users', {'username': admin_username})
         if not admin_exists:
             admin_user = {
-                'username': 'admin',
-                'password': generate_password_hash('admin123'),
+                'username': admin_username,
+                'password': generate_password_hash(admin_password),
                 'role': 'admin',
-                'email': 'admin@dine24.com',
+                'email': admin_email,
                 'created_at': datetime.utcnow()
             }
             db_manager.insert_one('users', admin_user)
-            print("Default admin user created: admin/admin123")
+            print(f"Default admin user created: {admin_username}/{admin_password}")
+        else:
+            print(f"Admin user '{admin_username}' already exists")
     except Exception as e:
         print(f"Database initialization error: {e}")
     

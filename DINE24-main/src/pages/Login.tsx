@@ -5,20 +5,42 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
-import { Crown, Shield, Eye, EyeOff } from "lucide-react";
+import { Crown, Shield, Eye, EyeOff, Loader2 } from "lucide-react";
+import { authApi } from "@/lib/apiClient";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [adminCredentials, setAdminCredentials] = useState({ username: "", password: "" });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (adminCredentials.username === "admindine24" && adminCredentials.password === "bhavyagit") {
-      localStorage.setItem("adminAuth", "true");
-      navigate("/admin/dashboard");
-    } else {
-      alert("Invalid admin credentials");
+    setError("");
+    setIsLoading(true);
+
+    try {
+      // Try Flask backend with MongoDB first
+      const data = await authApi.login(adminCredentials.username, adminCredentials.password);
+      if (data.success) {
+        navigate("/admin/dashboard");
+        return;
+      }
+    } catch (apiError: any) {
+      // If backend is unavailable, fall back to hardcoded demo credentials
+      console.warn("Backend unavailable, using demo credentials:", apiError.message);
+      if (
+        adminCredentials.username === "Dhana" &&
+        adminCredentials.password === "miniproject"
+      ) {
+        localStorage.setItem("adminAuth", "true");
+        navigate("/admin/dashboard");
+        return;
+      }
+      setError("Invalid credentials. Please check your username and password.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -81,17 +103,21 @@ const Login = () => {
                   </Button>
                 </div>
               </div>
-              <Button type="submit" className="btn-royal w-full">
-                Admin Sign In
+              {error && (
+                <p className="text-destructive text-sm text-center">{error}</p>
+              )}
+              <Button type="submit" className="btn-royal w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Signing In...
+                  </>
+                ) : (
+                  "Admin Sign In"
+                )}
               </Button>
             </form>
-            <div className="bg-muted/50 p-4 rounded-lg text-center">
-              <p className="text-xs text-muted-foreground">
-                Demo Credentials:<br />
-                Username: <span className="text-royal-gold">admindine24</span><br />
-                Password: <span className="text-royal-gold">bhavyagit</span>
-              </p>
-            </div>
+            
           </CardContent>
         </Card>
       </div>

@@ -366,6 +366,6 @@ export const generateReservationPDF = async (reservationData: any, orderItems?: 
     
   } catch (error) {
     console.error('Error generating PDF:', error);
-    throw new Error(`PDF generation failed: ${error.message}`);
+    throw new Error(`PDF generation failed: ${(error as Error).message}`);
   }
 };

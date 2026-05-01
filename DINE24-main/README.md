@@ -1,7 +1,7 @@
 
 # 🍽️ DINE24 - AI-Powered Restaurant Management System
 
-**Developer:** MAMIDALA BHAVYA REDDY  
+**Developer:** Soli Dhana Sri 
 **🏆 Full Stack Web Application with Advanced AI Integration**
 
 ---
@@ -415,7 +415,7 @@ Response:
   "version": "1.0.0",
   "database": "connected",
   "ai_service": "active",
-  "developer": "MAMIDALA BHAVYA REDDY"
+  "developer": "Soli Dhana Sri"
 }
 ```
 
@@ -529,7 +529,7 @@ This DINE24 system demonstrates:
 
 ## 👨‍💻 Developer Information
 
-**Name:** MAMIDALA BHAVYA REDDY  
+**Name:** Soli Dhana Sri  
 **Role:** Full Stack Developer  
 **Specialization:** Python Flask Development, MongoDB Database Design, AI Integration  
 **Project:** DINE24 Restaurant Management System  
@@ -555,7 +555,7 @@ This DINE24 system demonstrates:
 
 **Version:** 1.0.0  
 **Last Updated:** January 2024  
-**Maintained by:** MAMIDALA BHAVYA REDDY
+**Maintained by:** Soli Dhana Sri
 
 ### 🎯 Technical Highlights
 - **Real-time AI Chat**: Gemini API integration for intelligent customer support
